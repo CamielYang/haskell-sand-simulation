@@ -2,15 +2,18 @@ module Main (main) where
 
 import Data.Array
 import Data.Array.IO
+import Data.Foldable (forM_)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
 
-width, height, offset, frames :: Int
+width, height, offset, frames, sizeY, sizeX :: Int
 initialTransX, initialTransY, pixelSize :: Float
 width = 640
 height = 480
 offset = 100
-frames = 1
+frames = 30
+sizeY = 100
+sizeX = 200
 
 pixelSize = 5
 
@@ -24,7 +27,7 @@ window = InWindow "Simulation Game" (width, height) (offset, offset)
 background :: Color
 background = black
 
-data Material
+data Particle
   = Sand
   | Water
   | Empty
@@ -32,22 +35,25 @@ data Material
 
 type Coord = (Int, Int)
 
-type Cell = Material
+type Cell = (Particle, Bool)
 
-type Grid = IOArray Coord Cell
+type GridA a = a Coord Cell
+
+type Grid = GridA IOArray
 
 data GameState = GameState
   { frame :: Int,
-    grid :: Grid
+    grid :: Grid,
+    toggleUpdated :: Bool
   }
 
 generateGrid :: IO Grid
 generateGrid = do
   mutableGrid <- thaw initialGrid
-  let _ = mutableGrid :: IOArray Coord Cell
+  let _ = mutableGrid :: Grid
   return mutableGrid
   where
-    initialGrid = array ((0, 0), (99, 99)) [((x, y), Empty) | x <- [0 .. 99], y <- [0 .. 99]]
+    initialGrid = array ((0, 0), (sizeX, sizeY)) [((x, y), (Empty, False)) | x <- [0 .. sizeX], y <- [0 .. sizeY]]
 
 handleKeys :: Event -> GameState -> IO GameState
 handleKeys _ gameState = return gameState
@@ -59,26 +65,100 @@ createPixel color' (x, y) =
       translate (fromIntegral x * pixelSize - initialTransX) (fromIntegral y * pixelSize - initialTransY) $
         rectangleSolid pixelSize pixelSize
 
+getParticleFromCell :: Cell -> Particle
+getParticleFromCell (p, _) = p
+
+getBoolFromCell :: Cell -> Bool
+getBoolFromCell (_, b) = b
+
+getParticle :: Grid -> Coord -> IO Cell
+getParticle g c@(x, y)
+  | x <= sizeX && x >= 0 && y <= sizeY && y >= 0 = readArray g c
+  | otherwise = return (Sand, False)
+
 render :: GameState -> IO Picture
-render (GameState t g) = do
+render (GameState t g _) = do
   immutableGrid <- freeze g
-  let _ = immutableGrid :: Array Coord Cell
-  return (pictures [createMat (immutableGrid ! c) c | c <- indices immutableGrid, immutableGrid ! c /= Empty])
+  let _ = immutableGrid :: GridA Array
+  return (pictures [createMat (getParticleFromCell (immutableGrid ! c)) c | c <- indices immutableGrid, getParticleFromCell (immutableGrid ! c) /= Empty])
   where
-    createMat :: Cell -> Coord -> Picture
-    createMat m c = createPixel white c
+    createMat :: Particle -> Coord -> Picture
+    createMat m c
+      | m == Sand = createPixel white c
+      | otherwise = createPixel blue c
+
+createCell :: Grid -> Cell -> Coord -> IO ()
+createCell g p c@(x, y)
+  | x <= sizeX && x >= 0 && y <= sizeY && y >= 0 = writeArray g c p
+  | otherwise = return ()
+
+removeParticle :: Grid -> Coord -> Bool -> IO ()
+removeParticle g c b = createCell g (Empty, b) c
+
+updateSand :: Coord -> Grid -> Bool -> IO ()
+updateSand (x, y) g b = do
+  removeParticle g (x, y) b
+  (p1, _) <- getParticle g (x, y + 1)
+  (p2, _) <- getParticle g (x - 1, y + 1)
+  (p3, _) <- getParticle g (x + 1, y + 1)
+
+  let action
+        | p1 == Empty = createCell g (Sand, not b) (x, y + 1)
+        | p2 == Empty = createCell g (Sand, not b) (x - 1, y + 1)
+        | p3 == Empty = createCell g (Sand, not b) (x + 1, y + 1)
+        | otherwise = createCell g (Sand, not b) (x, y)
+  action
+
+updateWater :: Coord -> Grid -> Bool -> IO ()
+updateWater (x, y) g b = do
+  removeParticle g (x, y) b
+  (p1, _) <- getParticle g (x, y + 1)
+  (p2, _) <- getParticle g (x - 1, y)
+  (p3, _) <- getParticle g (x + 1, y)
+
+  let action
+        | p1 == Empty = createCell g (Water, not b) (x, y + 1)
+        | p2 == Empty = createCell g (Water, not b) (x - 1, y)
+        | p3 == Empty = createCell g (Water, not b) (x + 1, y)
+        | otherwise = createCell g (Water, not b) (x, y)
+  action
 
 update :: Float -> GameState -> IO GameState
-update _ state@(GameState t g) = do
-  writeArray g (10, 0) Sand
+update _ (GameState t g u) = do
+  forM_ [0 .. sizeY] $ \y -> do
+    forM_ [0 .. sizeX] $ \x -> do
+      particle <- readArray g (x, y)
+      let action
+            | particle == (Sand, u) = updateSand (x, y) g u
+            | particle == (Water, u) = updateWater (x, y) g u
+            | otherwise = return ()
+      action
+
+  if t `mod` 1 == 0
+    then do
+      createCell g (Sand, False) (10, 10)
+      createCell g (Sand, False) (20, 10)
+      createCell g (Sand, False) (30, 10)
+      createCell g (Sand, False) (40, 10)
+      createCell g (Sand, False) (50, 10)
+      createCell g (Sand, False) (60, 10)
+    else return ()
+
+  if t `mod` 5 == 0
+    then do
+      createCell g (Water, False) (70, 10)
+      createCell g (Water, False) (80, 10)
+      createCell g (Water, False) (90, 10)
+    else return ()
   return
     ( GameState
         { frame = if t + 1 <= frames then t + 1 else 1,
-          grid = g
+          grid = g,
+          toggleUpdated = not u
         }
     )
 
 main :: IO ()
 main = do
   grid <- generateGrid
-  playIO window background frames GameState {frame = 1, grid = grid} render handleKeys update
+  playIO window background frames GameState {frame = 1, grid = grid, toggleUpdated = False} render handleKeys update
