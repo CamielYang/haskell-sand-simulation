@@ -13,7 +13,7 @@ initialTransX, initialTransY, pixelSize :: Float
 width = 640
 height = 480
 offset = 100
-frames = 120
+frames = 60
 sizeY = 100
 sizeX = 200
 
@@ -78,24 +78,22 @@ getParticle g c@(x, y)
   | x <= sizeX && x >= 0 && y <= sizeY && y >= 0 = readArray g c
   | otherwise = return (Sand, False)
 
-purple :: [Word8]
-purple = [128, 0, 128, 64]
-
--- bitmapData :: ByteString
-bitmapData = take 8 (cycle purple)
+generateBitmap :: Array Coord Cell -> Picture
+generateBitmap grid = byteStringToBitmap createPixelsArray
+  where
+    createPixelsArray = concat [createMat (getParticleFromCell (grid ! (x, y))) | y <- [1 .. sizeY], x <- [1 .. sizeX]]
+    byteStringToBitmap pixelArray = scale 5 (-5) $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) True
+    createMat :: Particle -> [Word8]
+    createMat m
+      | m == Sand = [218, 211, 165, 255]
+      | m == Water = [5, 138, 189, 255]
+      | otherwise = [255, 255, 255, 255]
 
 render :: GameState -> IO Picture
 render (GameState t g _) = do
   immutableGrid <- freeze g
   let _ = immutableGrid :: GridA Array
-  let test = concat [createMat (getParticleFromCell (immutableGrid ! (x, y))) | y <- [1 .. sizeY], x <- [1 .. sizeX]]
-  return (scale 5 (-5) $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack test) True)
-  where
-    createMat :: Particle -> [Word8]
-    createMat m
-      | m == Sand = [254, 254, 254, 255]
-      | m == Water = [254, 254, 254, 150]
-      | otherwise = [254, 254, 254, 100]
+  return (generateBitmap immutableGrid)
 
 createCell :: Grid -> Cell -> Coord -> IO ()
 createCell g p c@(x, y)
