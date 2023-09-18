@@ -2,7 +2,7 @@ module Main (main) where
 
 import Data.Array
 import Data.Array.IO
-import Data.ByteString (ByteString, pack)
+import Data.ByteString (pack)
 import Data.Foldable (forM_)
 import Data.Word
 import Graphics.Gloss
@@ -86,7 +86,17 @@ generateGrid = do
   where
     initialGrid = array ((0, 0), (sizeX', sizeY')) [((x, y), (Empty, False)) | x <- [0 .. sizeX'], y <- [0 .. sizeY']]
 
+translateMouse :: (Float, Float) -> Coord
+translateMouse (x, y) = (translateX, translateY)
+  where
+    translateX, translateY :: Int
+    translateX = round (x / fromIntegral pixelSize + (fromIntegral sizeX / 2))
+    translateY = round (-y / fromIntegral pixelSize + (fromIntegral sizeY / 2))
+
 handleKeys :: Event -> GameState -> IO GameState
+handleKeys (EventKey (MouseButton LeftButton) Down _ c) gameState@(GameState _ g _) = do
+  createCell g (translateMouse c) (Water, False)
+  return gameState
 handleKeys _ gameState = return gameState
 
 getParticleFromCell :: Cell -> Particle
