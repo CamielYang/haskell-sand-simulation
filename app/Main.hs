@@ -2,7 +2,9 @@ module Main (main) where
 
 import Data.Array
 import Data.Array.IO
+import Data.ByteString (ByteString, pack)
 import Data.Foldable (forM_)
+import Data.Word
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
 
@@ -76,17 +78,24 @@ getParticle g c@(x, y)
   | x <= sizeX && x >= 0 && y <= sizeY && y >= 0 = readArray g c
   | otherwise = return (Sand, False)
 
+purple :: [Word8]
+purple = [128, 0, 128, 64]
+
+-- bitmapData :: ByteString
+bitmapData = take 8 (cycle purple)
+
 render :: GameState -> IO Picture
 render (GameState t g _) = do
   immutableGrid <- freeze g
   let _ = immutableGrid :: GridA Array
-  return (pictures [createMat (getParticleFromCell (immutableGrid ! c)) c | c <- indices immutableGrid])
+  let test = concat [createMat (getParticleFromCell (immutableGrid ! (x, y))) | y <- [1 .. sizeY], x <- [1 .. sizeX]]
+  return (scale 5 (-5) $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack test) True)
   where
-    createMat :: Particle -> Coord -> Picture
-    createMat m c
-      | m == Sand = createPixel white c
-      | m == Water = createPixel blue c
-      | otherwise = Blank
+    createMat :: Particle -> [Word8]
+    createMat m
+      | m == Sand = [254, 254, 254, 255]
+      | m == Water = [254, 254, 254, 150]
+      | otherwise = [254, 254, 254, 100]
 
 createCell :: Grid -> Cell -> Coord -> IO ()
 createCell g p c@(x, y)
