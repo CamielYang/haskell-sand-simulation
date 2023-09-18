@@ -11,7 +11,7 @@ initialTransX, initialTransY, pixelSize :: Float
 width = 640
 height = 480
 offset = 100
-frames = 30
+frames = 120
 sizeY = 100
 sizeX = 200
 
@@ -80,12 +80,13 @@ render :: GameState -> IO Picture
 render (GameState t g _) = do
   immutableGrid <- freeze g
   let _ = immutableGrid :: GridA Array
-  return (pictures [createMat (getParticleFromCell (immutableGrid ! c)) c | c <- indices immutableGrid, getParticleFromCell (immutableGrid ! c) /= Empty])
+  return (pictures [createMat (getParticleFromCell (immutableGrid ! c)) c | c <- indices immutableGrid])
   where
     createMat :: Particle -> Coord -> Picture
     createMat m c
       | m == Sand = createPixel white c
-      | otherwise = createPixel blue c
+      | m == Water = createPixel blue c
+      | otherwise = Blank
 
 createCell :: Grid -> Cell -> Coord -> IO ()
 createCell g p c@(x, y)
