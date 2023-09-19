@@ -35,7 +35,7 @@ window = InWindow "Simulation Game" (width, height) (offset, offset)
 background :: Color
 background = black
 
-data Particle
+data ParticleType
   = Sand
   | Water
   | Stone
@@ -44,48 +44,48 @@ data Particle
   | Empty
   deriving (Eq, Show, Enum, Bounded)
 
-allParticles :: [Particle]
-allParticles = [(minBound :: Particle) ..]
+allParticles :: [ParticleType]
+allParticles = [(minBound :: ParticleType) ..]
 
-data ParticleData = ParticleNew
+data ParticleData = Particle
   { pVelocity :: Int,
     pColor :: [Word8],
     pDirections :: [Direction]
   }
 
-pd :: Particle -> ParticleData
+pd :: ParticleType -> ParticleData
 pd Sand =
-  ParticleNew
+  Particle
     { pVelocity = 10,
       pColor = [218, 211, 165, 255],
       pDirections = [Bottom, BottomLeft, BottomRight]
     }
 pd Stone =
-  ParticleNew
+  Particle
     { pVelocity = 10,
       pColor = [185, 185, 186, 255],
       pDirections = []
     }
 pd Wood =
-  ParticleNew
+  Particle
     { pVelocity = 10,
       pColor = [136, 118, 71, 255],
       pDirections = []
     }
 pd Grass =
-  ParticleNew
+  Particle
     { pVelocity = 10,
       pColor = [101, 159, 72, 255],
       pDirections = []
     }
 pd Water =
-  ParticleNew
+  Particle
     { pVelocity = 10,
       pColor = [5, 138, 189, 255],
       pDirections = [Bottom, BottomLeft, BottomRight, Left, Right]
     }
 pd _ =
-  ParticleNew
+  Particle
     { pVelocity = 0,
       pColor = [255, 255, 255, 255],
       pDirections = []
@@ -93,7 +93,7 @@ pd _ =
 
 type Coord = (Int, Int)
 
-type Cell = (Particle, Bool)
+type Cell = (ParticleType, Bool)
 
 type GridA a = a Coord Cell
 
@@ -116,7 +116,7 @@ data GameState = GameState
     toggleUpdated :: Bool,
     mouseDown :: Bool,
     mousePosition :: Coord,
-    selectedParticle :: Particle
+    selectedParticle :: ParticleType
   }
 
 getDir :: Direction -> Coord -> Coord
@@ -170,7 +170,7 @@ handleKeys (EventKey (Char 'a') Down _ _) gameState = do
       }
 handleKeys _ gameState = return gameState
 
-getParticleFromCell :: Cell -> Particle
+getParticleFromCell :: Cell -> ParticleType
 getParticleFromCell (p, _) = p
 
 -- getBoolFromCell :: Cell -> Bool
@@ -190,7 +190,7 @@ generateBitmap grid = byteStringToBitmap createPixelsArray
     scaleBitmap = scale (fromIntegral pixelSize) (-(fromIntegral pixelSize))
     createPixelsArray = concat [createPixel (getParticleFromCell (grid ! (x, y))) | y <- [0 .. sizeY'], x <- [0 .. sizeX']]
     byteStringToBitmap pixelArray = scaleBitmap $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) True
-    createPixel :: Particle -> [Word8]
+    createPixel :: ParticleType -> [Word8]
     createPixel p = pColor $ pd p
 
 render :: GameState -> IO Picture
