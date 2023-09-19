@@ -189,7 +189,7 @@ generateBitmap grid = byteStringToBitmap createPixelsArray
   where
     scaleBitmap = scale (fromIntegral pixelSize) (-(fromIntegral pixelSize))
     createPixelsArray = concat [createPixel (getParticleFromCell (grid ! (x, y))) | y <- [0 .. sizeY'], x <- [0 .. sizeX']]
-    byteStringToBitmap pixelArray = scaleBitmap $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) True
+    byteStringToBitmap pixelArray = scaleBitmap $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) False
     createPixel :: ParticleType -> [Word8]
     createPixel p = pColor $ pd p
 
@@ -227,6 +227,15 @@ updateSand c g u = do
         | p1 == Empty = createCell g (getDir Bottom c) (Sand, not u)
         | p2 == Empty && p4 == Empty = createCell g (getDir BottomLeft c) (Sand, not u)
         | p3 == Empty && p5 == Empty = createCell g (getDir BottomRight c) (Sand, not u)
+        | p1 == Water = do
+            createCell g (getDir Bottom c) (Sand, not u)
+            createCell g c (Water, not u)
+        | p2 == Water && p4 == Water = do
+            createCell g (getDir BottomLeft c) (Sand, not u)
+            createCell g c (Water, not u)
+        | p3 == Water && p5 == Water = do
+            createCell g (getDir BottomRight c) (Sand, not u)
+            createCell g c (Water, not u)
         | otherwise = createCell g c (Sand, not u)
   action
 
