@@ -19,11 +19,11 @@ width,
   sizeX',
   pixelSize ::
     Int
-sizeY = 100
-sizeX = 200
+sizeY = 200
+sizeX = 400
 sizeY' = 100 - 1
 sizeX' = 200 - 1
-pixelSize = 5
+pixelSize = 3
 width = sizeX * pixelSize
 height = sizeY * pixelSize
 offset = 100
@@ -38,10 +38,14 @@ background = black
 data Particle
   = Sand
   | Water
-  | Smoke
-  | Filled
+  | Stone
+  | Wood
+  | Grass
   | Empty
-  deriving (Eq)
+  deriving (Eq, Show, Enum, Bounded)
+
+allParticles :: [Particle]
+allParticles = [(minBound :: Particle) ..]
 
 data ParticleData = ParticleNew
   { pVelocity :: Int,
@@ -56,11 +60,23 @@ pd Sand =
       pColor = [218, 211, 165, 255],
       pDirections = [Bottom, BottomLeft, BottomRight]
     }
-pd Smoke =
+pd Stone =
   ParticleNew
     { pVelocity = 10,
-      pColor = [218, 211, 165, 255],
-      pDirections = [Top, TopLeft, TopRight]
+      pColor = [185, 185, 186, 255],
+      pDirections = []
+    }
+pd Wood =
+  ParticleNew
+    { pVelocity = 10,
+      pColor = [136, 118, 71, 255],
+      pDirections = []
+    }
+pd Grass =
+  ParticleNew
+    { pVelocity = 10,
+      pColor = [101, 159, 72, 255],
+      pDirections = []
     }
 pd Water =
   ParticleNew
@@ -99,7 +115,8 @@ data GameState = GameState
     grid :: Grid,
     toggleUpdated :: Bool,
     mouseDown :: Bool,
-    mousePosition :: Coord
+    mousePosition :: Coord,
+    selectedParticle :: Particle
   }
 
 getDir :: Direction -> Coord -> Coord
@@ -135,6 +152,22 @@ handleKeys (EventKey (MouseButton LeftButton) Up _ _) gameState = do
   return gameState {mouseDown = False}
 handleKeys (EventMotion c) gameState = do
   return gameState {mousePosition = translateMouse c}
+handleKeys (EventKey (Char 'd') Down _ _) gameState = do
+  return
+    gameState
+      { selectedParticle =
+          if last allParticles == selectedParticle gameState
+            then head allParticles
+            else succ $ selectedParticle gameState
+      }
+handleKeys (EventKey (Char 'a') Down _ _) gameState = do
+  return
+    gameState
+      { selectedParticle =
+          if head allParticles == selectedParticle gameState
+            then last allParticles
+            else pred $ selectedParticle gameState
+      }
 handleKeys _ gameState = return gameState
 
 getParticleFromCell :: Cell -> Particle
@@ -149,7 +182,7 @@ inBound (x, y) = x <= sizeX' && x >= 0 && y <= sizeY' && y >= 0
 getParticle :: Grid -> Coord -> IO Cell
 getParticle g c
   | inBound c = readArray g c
-  | otherwise = return (Filled, False)
+  | otherwise = return (Sand, False)
 
 generateBitmap :: Array Coord Cell -> Picture
 generateBitmap grid = byteStringToBitmap createPixelsArray
@@ -164,7 +197,14 @@ render :: GameState -> IO Picture
 render gameState = do
   immutableGrid <- freeze (grid gameState)
   let _ = immutableGrid :: GridA Array
-  return (generateBitmap immutableGrid)
+  return
+    ( pictures
+        [ generateBitmap immutableGrid,
+          drawText
+        ]
+    )
+  where
+    drawText = translate (-(fromIntegral width / 2 - 10)) (fromIntegral height / 2 - 20) $ scale 0.1 0.1 $ text (show $ selectedParticle gameState)
 
 createCell :: Grid -> Coord -> Cell -> IO ()
 createCell grid coord cell
@@ -180,11 +220,13 @@ updateSand c g u = do
   (p1, _) <- getParticle g (getDir Bottom c)
   (p2, _) <- getParticle g (getDir BottomLeft c)
   (p3, _) <- getParticle g (getDir BottomRight c)
+  (p4, _) <- getParticle g (getDir Left c)
+  (p5, _) <- getParticle g (getDir Right c)
 
   let action
         | p1 == Empty = createCell g (getDir Bottom c) (Sand, not u)
-        | p2 == Empty = createCell g (getDir BottomLeft c) (Sand, not u)
-        | p3 == Empty = createCell g (getDir BottomRight c) (Sand, not u)
+        | p2 == Empty && p4 == Empty = createCell g (getDir BottomLeft c) (Sand, not u)
+        | p3 == Empty && p5 == Empty = createCell g (getDir BottomRight c) (Sand, not u)
         | otherwise = createCell g c (Sand, not u)
   action
 
@@ -199,15 +241,15 @@ updateWater c g u = do
 
   let action
         | p1 == Empty = createCell g (getDir Bottom c) (Water, not u)
-        | p2 == Empty = createCell g (getDir BottomLeft c) (Water, not u)
-        | p3 == Empty = createCell g (getDir BottomRight c) (Water, not u)
+        | p2 == Empty && p4 == Empty = createCell g (getDir BottomLeft c) (Water, not u)
+        | p3 == Empty && p5 == Empty = createCell g (getDir BottomRight c) (Water, not u)
         | p4 == Empty = createCell g (getDir Left c) (Water, not u)
         | p5 == Empty = createCell g (getDir Right c) (Water, not u)
         | otherwise = createCell g c (Water, not u)
   action
 
 update :: Float -> GameState -> IO GameState
-update _ gameState@(GameState t g u md mp) = do
+update _ gameState@(GameState t g u md mp sp) = do
   forM_ [0 .. sizeY'] $ \y -> do
     forM_ [0 .. sizeX'] $ \x -> do
       particle <- readArray g (x, y)
@@ -217,20 +259,25 @@ update _ gameState@(GameState t g u md mp) = do
             | otherwise = return ()
       action
 
-  when md $ createCell g mp (Water, False)
+  when md $ do
+    createCell g (getDir Center mp) (sp, not u)
+    createCell g (getDir Top mp) (sp, not u)
+    createCell g (getDir Bottom mp) (sp, not u)
+    createCell g (getDir Left mp) (sp, not u)
+    createCell g (getDir Right mp) (sp, not u)
 
-  when (t `mod` 1 == 0) $ do
-    createCell g (10, 10) (Sand, False)
-    createCell g (20, 10) (Sand, False)
-    createCell g (30, 10) (Sand, False)
-    createCell g (40, 10) (Sand, False)
-    createCell g (50, 10) (Sand, False)
-    createCell g (60, 10) (Sand, False)
+  -- when (t `mod` 2 == 0) $ do
+  --   createCell g (10, 10) (Sand, not u)
+  --   createCell g (20, 10) (Sand, not u)
+  --   createCell g (30, 10) (Sand, not u)
+  --   createCell g (40, 10) (Sand, not u)
+  --   createCell g (50, 10) (Sand, not u)
+  --   createCell g (60, 10) (Sand, not u)
 
-  when (t `mod` 5 == 0) $ do
-    createCell g (70, 10) (Water, False)
-    createCell g (80, 10) (Water, False)
-    createCell g (90, 10) (Water, False)
+  -- when (t `mod` 5 == 0) $ do
+  --   createCell g (70, 10) (Water, not u)
+  --   createCell g (80, 10) (Water, not u)
+  --   createCell g (90, 10) (Water, not u)
   return
     gameState
       { frame = if t + 1 <= frames then t + 1 else 1,
@@ -249,7 +296,8 @@ main = do
         grid = grid,
         toggleUpdated = False,
         mouseDown = False,
-        mousePosition = (0, 0)
+        mousePosition = (0, 0),
+        selectedParticle = Sand
       }
     render
     handleKeys
