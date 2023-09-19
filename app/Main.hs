@@ -1,9 +1,9 @@
 module Main (main) where
 
+import Control.Monad
 import Data.Array
 import Data.Array.IO
 import Data.ByteString (pack)
-import Data.Foldable (forM_)
 import Data.Word
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
@@ -23,7 +23,7 @@ sizeY = 100
 sizeX = 200
 sizeY' = 100 - 1
 sizeX' = 200 - 1
-pixelSize = 3
+pixelSize = 5
 width = sizeX * pixelSize
 height = sizeY * pixelSize
 offset = 100
@@ -66,7 +66,7 @@ pd Water =
   ParticleNew
     { pVelocity = 10,
       pColor = [5, 138, 189, 255],
-      pDirections = [Bottom, Left, Right]
+      pDirections = [Bottom, BottomLeft, BottomRight, Left, Right]
     }
 pd _ =
   ParticleNew
@@ -97,7 +97,9 @@ data Direction
 data GameState = GameState
   { frame :: Int,
     grid :: Grid,
-    toggleUpdated :: Bool
+    toggleUpdated :: Bool,
+    mouseDown :: Bool,
+    mousePosition :: Coord
   }
 
 getDir :: Direction -> Coord -> Coord
@@ -127,16 +129,19 @@ translateMouse (x, y) = (translateX, translateY)
     translateY = round (-y / fromIntegral pixelSize + (fromIntegral sizeY / 2))
 
 handleKeys :: Event -> GameState -> IO GameState
-handleKeys (EventKey (MouseButton LeftButton) Down _ c) gameState@(GameState _ g _) = do
-  createCell g (translateMouse c) (Water, False)
-  return gameState
+handleKeys (EventKey (MouseButton LeftButton) Down _ _) gameState = do
+  return gameState {mouseDown = True}
+handleKeys (EventKey (MouseButton LeftButton) Up _ _) gameState = do
+  return gameState {mouseDown = False}
+handleKeys (EventMotion c) gameState = do
+  return gameState {mousePosition = translateMouse c}
 handleKeys _ gameState = return gameState
 
 getParticleFromCell :: Cell -> Particle
 getParticleFromCell (p, _) = p
 
-getBoolFromCell :: Cell -> Bool
-getBoolFromCell (_, b) = b
+-- getBoolFromCell :: Cell -> Bool
+-- getBoolFromCell (_, b) = b
 
 inBound :: Coord -> Bool
 inBound (x, y) = x <= sizeX' && x >= 0 && y <= sizeY' && y >= 0
@@ -156,8 +161,8 @@ generateBitmap grid = byteStringToBitmap createPixelsArray
     createPixel p = pColor $ pd p
 
 render :: GameState -> IO Picture
-render (GameState _ g _) = do
-  immutableGrid <- freeze g
+render gameState = do
+  immutableGrid <- freeze (grid gameState)
   let _ = immutableGrid :: GridA Array
   return (generateBitmap immutableGrid)
 
@@ -187,18 +192,22 @@ updateWater :: Coord -> Grid -> Bool -> IO ()
 updateWater c g u = do
   removeParticle g c u
   (p1, _) <- getParticle g (getDir Bottom c)
-  (p2, _) <- getParticle g (getDir Left c)
-  (p3, _) <- getParticle g (getDir Right c)
+  (p2, _) <- getParticle g (getDir BottomLeft c)
+  (p3, _) <- getParticle g (getDir BottomRight c)
+  (p4, _) <- getParticle g (getDir Left c)
+  (p5, _) <- getParticle g (getDir Right c)
 
   let action
         | p1 == Empty = createCell g (getDir Bottom c) (Water, not u)
-        | p2 == Empty = createCell g (getDir Left c) (Water, not u)
-        | p3 == Empty = createCell g (getDir Right c) (Water, not u)
+        | p2 == Empty = createCell g (getDir BottomLeft c) (Water, not u)
+        | p3 == Empty = createCell g (getDir BottomRight c) (Water, not u)
+        | p4 == Empty = createCell g (getDir Left c) (Water, not u)
+        | p5 == Empty = createCell g (getDir Right c) (Water, not u)
         | otherwise = createCell g c (Water, not u)
   action
 
 update :: Float -> GameState -> IO GameState
-update _ (GameState t g u) = do
+update _ gameState@(GameState t g u md mp) = do
   forM_ [0 .. sizeY'] $ \y -> do
     forM_ [0 .. sizeX'] $ \x -> do
       particle <- readArray g (x, y)
@@ -208,29 +217,25 @@ update _ (GameState t g u) = do
             | otherwise = return ()
       action
 
-  if t `mod` 1 == 0
-    then do
-      createCell g (10, 10) (Sand, False)
-      createCell g (20, 10) (Sand, False)
-      createCell g (30, 10) (Sand, False)
-      createCell g (40, 10) (Sand, False)
-      createCell g (50, 10) (Sand, False)
-      createCell g (60, 10) (Sand, False)
-    else return ()
+  when md $ createCell g mp (Water, False)
 
-  if t `mod` 5 == 0
-    then do
-      createCell g (70, 10) (Water, False)
-      createCell g (80, 10) (Water, False)
-      createCell g (90, 10) (Water, False)
-    else return ()
+  when (t `mod` 1 == 0) $ do
+    createCell g (10, 10) (Sand, False)
+    createCell g (20, 10) (Sand, False)
+    createCell g (30, 10) (Sand, False)
+    createCell g (40, 10) (Sand, False)
+    createCell g (50, 10) (Sand, False)
+    createCell g (60, 10) (Sand, False)
+
+  when (t `mod` 5 == 0) $ do
+    createCell g (70, 10) (Water, False)
+    createCell g (80, 10) (Water, False)
+    createCell g (90, 10) (Water, False)
   return
-    ( GameState
-        { frame = if t + 1 <= frames then t + 1 else 1,
-          grid = g,
-          toggleUpdated = not u
-        }
-    )
+    gameState
+      { frame = if t + 1 <= frames then t + 1 else 1,
+        toggleUpdated = not u
+      }
 
 main :: IO ()
 main = do
@@ -239,7 +244,13 @@ main = do
     window
     background
     frames
-    GameState {frame = 1, grid = grid, toggleUpdated = False}
+    GameState
+      { frame = 1,
+        grid = grid,
+        toggleUpdated = False,
+        mouseDown = False,
+        mousePosition = (0, 0)
+      }
     render
     handleKeys
     update
