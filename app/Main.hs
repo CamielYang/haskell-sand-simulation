@@ -27,7 +27,7 @@ pixelSize = 3
 width = sizeX * pixelSize
 height = sizeY * pixelSize
 offset = 100
-frames = 120
+frames = 60
 
 window :: Display
 window = InWindow "Simulation Game" (width, height) (offset, offset)
@@ -38,9 +38,42 @@ background = black
 data Particle
   = Sand
   | Water
+  | Smoke
   | Filled
   | Empty
   deriving (Eq)
+
+data ParticleData = ParticleNew
+  { pVelocity :: Int,
+    pColor :: [Word8],
+    pDirections :: [Direction]
+  }
+
+pd :: Particle -> ParticleData
+pd Sand =
+  ParticleNew
+    { pVelocity = 10,
+      pColor = [218, 211, 165, 255],
+      pDirections = [Bottom, BottomLeft, BottomRight]
+    }
+pd Smoke =
+  ParticleNew
+    { pVelocity = 10,
+      pColor = [218, 211, 165, 255],
+      pDirections = [Top, TopLeft, TopRight]
+    }
+pd Water =
+  ParticleNew
+    { pVelocity = 10,
+      pColor = [5, 138, 189, 255],
+      pDirections = [Bottom, Left, Right]
+    }
+pd _ =
+  ParticleNew
+    { pVelocity = 0,
+      pColor = [255, 255, 255, 255],
+      pDirections = []
+    }
 
 type Coord = (Int, Int)
 
@@ -117,13 +150,10 @@ generateBitmap :: Array Coord Cell -> Picture
 generateBitmap grid = byteStringToBitmap createPixelsArray
   where
     scaleBitmap = scale (fromIntegral pixelSize) (-(fromIntegral pixelSize))
-    createPixelsArray = concat [createMat (getParticleFromCell (grid ! (x, y))) | y <- [0 .. sizeY'], x <- [0 .. sizeX']]
+    createPixelsArray = concat [createPixel (getParticleFromCell (grid ! (x, y))) | y <- [0 .. sizeY'], x <- [0 .. sizeX']]
     byteStringToBitmap pixelArray = scaleBitmap $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) True
-    createMat :: Particle -> [Word8]
-    createMat m
-      | m == Sand = [218, 211, 165, 255]
-      | m == Water = [5, 138, 189, 255]
-      | otherwise = [255, 255, 255, 255]
+    createPixel :: Particle -> [Word8]
+    createPixel p = pColor $ pd p
 
 render :: GameState -> IO Picture
 render (GameState _ g _) = do
