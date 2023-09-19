@@ -19,15 +19,15 @@ width,
   sizeX',
   pixelSize ::
     Int
-sizeY = 200
-sizeX = 400
-sizeY' = 100 - 1
-sizeX' = 200 - 1
-pixelSize = 3
-width = sizeX * pixelSize
-height = sizeY * pixelSize
 offset = 100
 frames = 60
+pixelSize = 3
+sizeY = 100
+sizeX = 200
+width = sizeX * pixelSize
+height = sizeY * pixelSize
+sizeY' = sizeY - 1
+sizeX' = sizeX - 1
 
 window :: Display
 window = InWindow "Simulation Game" (width, height) (offset, offset)
