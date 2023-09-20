@@ -25,6 +25,7 @@ dependencies:
 - gloss-raster
 - array
 - bytestring
+- random
 
 ghc-options:
 - -Wall

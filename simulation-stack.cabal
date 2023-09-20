@@ -37,6 +37,7 @@ library
     , bytestring
     , gloss
     , gloss-raster
+    , random
   default-language: Haskell2010
 
 executable simulation-stack-exe
@@ -52,6 +53,7 @@ executable simulation-stack-exe
     , bytestring
     , gloss
     , gloss-raster
+    , random
     , simulation-stack
   default-language: Haskell2010
 
@@ -69,5 +71,6 @@ test-suite simulation-stack-test
     , bytestring
     , gloss
     , gloss-raster
+    , random
     , simulation-stack
   default-language: Haskell2010
