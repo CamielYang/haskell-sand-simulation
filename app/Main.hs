@@ -5,8 +5,10 @@ import Data.Array
 import Data.Array.IO
 import Data.ByteString (pack)
 import Data.Word
+import Debug.Trace
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
+import Graphics.Gloss.Raster.Field (makePicture, rgb, rgb', rgbI)
 import System.Random
 import Prelude hiding (Left, Right)
 
@@ -22,9 +24,9 @@ width,
     Int
 offset = 100
 frames = 60
-pixelSize = 3
-sizeY = 100
-sizeX = 200
+pixelSize = 2
+sizeY = 300
+sizeX = 600
 width = sizeX * pixelSize
 height = sizeY * pixelSize
 sizeY' = sizeY - 1
@@ -51,29 +53,29 @@ allParticles = [(minBound :: ParticleType) ..]
 
 data ParticleData = Particle
   { pFallRate :: Int,
-    pColor :: [Word8]
+    pColor :: Color
   }
 
 defaultParticle =
   Particle
     { pFallRate = 1,
-      pColor = [255, 255, 255, 255]
+      pColor = white
     }
 
 defaultStaticParticle =
   Particle
     { pFallRate = 0,
-      pColor = [255, 255, 255, 255]
+      pColor = white
     }
 
 pd :: ParticleType -> ParticleData
-pd Sand = defaultParticle {pColor = [218, 211, 165, 255]}
-pd Water = defaultParticle {pColor = [5, 138, 189, 255]}
-pd Acid = defaultParticle {pColor = [114, 209, 68, 255]}
-pd Stone = defaultStaticParticle {pColor = [185, 185, 186, 255]}
-pd Wood = defaultStaticParticle {pColor = [136, 118, 71, 255]}
-pd Grass = defaultStaticParticle {pColor = [101, 159, 72, 255]}
-pd _ = defaultStaticParticle {pColor = [255, 255, 255, 255]}
+pd Sand = defaultParticle {pColor = rgbI 218 211 165}
+pd Water = defaultParticle {pColor = rgbI 5 138 189}
+pd Acid = defaultParticle {pColor = rgbI 114 209 68}
+pd Stone = defaultStaticParticle {pColor = rgbI 185 185 185}
+pd Wood = defaultStaticParticle {pColor = rgbI 136 118 71}
+pd Grass = defaultStaticParticle {pColor = rgbI 101 159 72}
+pd _ = defaultStaticParticle {pColor = white}
 
 type Coord = (Int, Int)
 
@@ -171,22 +173,23 @@ getParticle g c
   | inBound c = readArray g c
   | otherwise = return (Sand, False)
 
-generateBitmap :: Array Coord Cell -> Picture
-generateBitmap grid = byteStringToBitmap createPixelsArray
-  where
-    scaleBitmap = scale (fromIntegral pixelSize) (-(fromIntegral pixelSize))
-    createPixelsArray = concat [createPixel (getParticleFromCell (grid ! (x, y))) | y <- [0 .. sizeY'], x <- [0 .. sizeX']]
-    byteStringToBitmap pixelArray = scaleBitmap $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) False
-    createPixel :: ParticleType -> [Word8]
-    createPixel p = pColor $ pd p
+-- generateBitmap :: Array Coord Cell -> Picture
+-- generateBitmap grid = byteStringToBitmap createPixelsArray
+--   where
+--     scaleBitmap = scale (fromIntegral pixelSize) (-(fromIntegral pixelSize))
+--     createPixelsArray = concat [createPixel (getParticleFromCell (grid ! (x, y))) | y <- [0 .. sizeY'], x <- [0 .. sizeX']]
+--     byteStringToBitmap pixelArray = scaleBitmap $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) False
+--     createPixel :: ParticleType -> [Word8]
+--     createPixel p = pColor $ pd p
 
 render :: GameState -> IO Picture
 render gameState = do
   immutableGrid <- freeze (grid gameState)
   let _ = immutableGrid :: GridA Array
+  let makePixel (x, y) = pColor $ pd (getParticleFromCell (immutableGrid ! (round $ abs ((-1 - x) / (2 / fromIntegral sizeX)), round $ abs ((-1 - y) / (2 / fromIntegral sizeY)))))
   return
     ( pictures
-        [ generateBitmap immutableGrid,
+        [ scale (fromIntegral pixelSize) (-(fromIntegral pixelSize)) $ makePicture sizeX sizeY 1 1 makePixel,
           drawText
         ]
     )
@@ -312,13 +315,13 @@ update _ gameState@(GameState t g u md mp sp) = do
     createCell g (getDir Left mp) (sp, not u)
     createCell g (getDir Right mp) (sp, not u)
 
-  -- when (t `mod` 2 == 0) $ do
-  --   createCell g (10, 10) (Sand, not u)
-  --   createCell g (20, 10) (Sand, not u)
-  --   createCell g (30, 10) (Sand, not u)
-  --   createCell g (40, 10) (Sand, not u)
-  --   createCell g (50, 10) (Sand, not u)
-  --   createCell g (60, 10) (Sand, not u)
+  when (t `mod` 2 == 0) $ do
+    createCell g (10, 10) (Sand, not u)
+    createCell g (20, 10) (Sand, not u)
+    createCell g (30, 10) (Sand, not u)
+    createCell g (40, 10) (Sand, not u)
+    createCell g (50, 10) (Sand, not u)
+    createCell g (60, 10) (Sand, not u)
 
   -- when (t `mod` 5 == 0) $ do
   --   createCell g (70, 10) (Water, not u)
