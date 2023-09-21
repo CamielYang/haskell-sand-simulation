@@ -3,12 +3,9 @@ module Main (main) where
 import Control.Monad
 import Data.Array
 import Data.Array.IO
-import Data.ByteString (pack)
-import Data.Word
-import Debug.Trace
 import Graphics.Gloss
 import Graphics.Gloss.Interface.IO.Game
-import Graphics.Gloss.Raster.Field (makePicture, rgb, rgb', rgbI)
+import Graphics.Gloss.Raster.Field (makePicture, rgbI)
 import System.Random
 import Prelude hiding (Left, Right)
 
@@ -24,9 +21,9 @@ width,
     Int
 offset = 100
 frames = 60
-pixelSize = 2
-sizeY = 300
-sizeX = 600
+pixelSize = 3
+sizeY = 150
+sizeX = 300
 width = sizeX * pixelSize
 height = sizeY * pixelSize
 sizeY' = sizeY - 1
@@ -173,27 +170,23 @@ getParticle g c
   | inBound c = readArray g c
   | otherwise = return (Sand, False)
 
--- generateBitmap :: Array Coord Cell -> Picture
--- generateBitmap grid = byteStringToBitmap createPixelsArray
---   where
---     scaleBitmap = scale (fromIntegral pixelSize) (-(fromIntegral pixelSize))
---     createPixelsArray = concat [createPixel (getParticleFromCell (grid ! (x, y))) | y <- [0 .. sizeY'], x <- [0 .. sizeX']]
---     byteStringToBitmap pixelArray = scaleBitmap $ bitmapOfByteString sizeX sizeY (BitmapFormat BottomToTop PxRGBA) (pack pixelArray) False
---     createPixel :: ParticleType -> [Word8]
---     createPixel p = pColor $ pd p
+pointToCoord :: Float -> Int -> Int
+pointToCoord pointValue size = round $ abs ((-1 - pointValue) / (2 / fromIntegral size))
 
 render :: GameState -> IO Picture
 render gameState = do
   immutableGrid <- freeze (grid gameState)
   let _ = immutableGrid :: GridA Array
-  let makePixel (x, y) = pColor $ pd (getParticleFromCell (immutableGrid ! (round $ abs ((-1 - x) / (2 / fromIntegral sizeX)), round $ abs ((-1 - y) / (2 / fromIntegral sizeY)))))
+  let makePixel (x, y) = pColor $ pd (getParticleFromCell (immutableGrid ! (pointToCoord x sizeX, pointToCoord y sizeY)))
+
   return
     ( pictures
-        [ scale (fromIntegral pixelSize) (-(fromIntegral pixelSize)) $ makePicture sizeX sizeY 1 1 makePixel,
+        [ scaleGrid $ makePicture sizeX sizeY 1 1 makePixel,
           drawText
         ]
     )
   where
+    scaleGrid = scale (fromIntegral pixelSize) (-(fromIntegral pixelSize))
     drawText = translate (-(fromIntegral width / 2 - 10)) (fromIntegral height / 2 - 20) $ scale 0.1 0.1 $ text (show $ selectedParticle gameState)
 
 createCell :: Grid -> Coord -> Cell -> IO ()
@@ -315,13 +308,13 @@ update _ gameState@(GameState t g u md mp sp) = do
     createCell g (getDir Left mp) (sp, not u)
     createCell g (getDir Right mp) (sp, not u)
 
-  when (t `mod` 2 == 0) $ do
-    createCell g (10, 10) (Sand, not u)
-    createCell g (20, 10) (Sand, not u)
-    createCell g (30, 10) (Sand, not u)
-    createCell g (40, 10) (Sand, not u)
-    createCell g (50, 10) (Sand, not u)
-    createCell g (60, 10) (Sand, not u)
+  -- when (t `mod` 2 == 0) $ do
+  --   createCell g (10, 10) (Sand, not u)
+  --   createCell g (20, 10) (Sand, not u)
+  --   createCell g (30, 10) (Sand, not u)
+  --   createCell g (40, 10) (Sand, not u)
+  --   createCell g (50, 10) (Sand, not u)
+  --   createCell g (60, 10) (Sand, not u)
 
   -- when (t `mod` 5 == 0) $ do
   --   createCell g (70, 10) (Water, not u)
