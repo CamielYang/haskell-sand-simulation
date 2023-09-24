@@ -26,6 +26,7 @@ dependencies:
 - array
 - bytestring
 - random
+- random-shuffle
 
 ghc-options:
 - -Wall

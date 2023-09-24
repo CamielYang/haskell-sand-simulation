@@ -25,7 +25,17 @@ source-repository head
 
 library
   exposed-modules:
+      Config
+      Gloss.Game
       Lib
+      Particles.Liquid.Acid
+      Particles.Liquid.Liquid
+      Particles.Liquid.Liquids
+      Particles.Liquid.Water
+      Particles.MovableSolid.MovableSolids
+      Particles.MovableSolid.Sand
+      Particles.Particle
+      Types
   other-modules:
       Paths_simulation_stack
   hs-source-dirs:
@@ -38,6 +48,7 @@ library
     , gloss
     , gloss-raster
     , random
+    , random-shuffle
   default-language: Haskell2010
 
 executable simulation-stack-exe
@@ -54,6 +65,7 @@ executable simulation-stack-exe
     , gloss
     , gloss-raster
     , random
+    , random-shuffle
     , simulation-stack
   default-language: Haskell2010
 
@@ -72,5 +84,6 @@ test-suite simulation-stack-test
     , gloss
     , gloss-raster
     , random
+    , random-shuffle
     , simulation-stack
   default-language: Haskell2010
